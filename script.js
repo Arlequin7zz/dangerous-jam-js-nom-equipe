@@ -1,6 +1,3 @@
-// ==========================================
-// 1. LE GARDIEN DU SOL (Ta classe FloorManager)
-// ==========================================
 class FloorManager {
     constructor() {
         this.floorIsToxic = false;
@@ -9,9 +6,9 @@ class FloorManager {
         this.timer = 0;
         this.lastTime = Date.now();
         this.durations = {
-            SAFE: 3000,    // 3 secondes de sécurité
-            WARNING: 1000, // 1 seconde d'alerte (Orange)
-            TOXIC: 2000    // 2 secondes de poison (Rouge)
+            SAFE: 3000,
+            WARNING: 1000,
+            TOXIC: 2000
         };
         this.floorHeight = 50;
     }
@@ -56,26 +53,26 @@ class FloorManager {
     checkDanger(player, canvas) {
         if (!this.floorIsToxic) return false;
         
-        // On calcule si le bas du joueur touche le sol
         const playerBottom = player.y + player.size;
         const floorTop = canvas.height - this.floorHeight;
 
         if (playerBottom >= floorTop) {
-            return true; // MORT !
+            return true;
         }
         return false;
     }
 }
 
-// ==========================================
-// 2. CONFIGURATION DU JEU
-// ==========================================
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
 let gameState = 'START'; 
 let score = 0;
 const floorManager = new FloorManager();
+
+let enemies = [];
+let enemyTimer = 0;
+let enemyInterval = 1500;
 
 let player = {
     x: canvas.width / 2 - 20,
@@ -85,29 +82,25 @@ let player = {
     color: 'cyan'
 };
 
-// Gestion du clavier
 let keys = {};
 window.addEventListener('keydown', (e) => {
     keys[e.code] = true;
     if (e.code === 'Space') {
         if (gameState === 'START') gameState = 'PLAYING';
         else if (gameState === 'GAMEOVER') {
-            // Reset du jeu
             player.x = canvas.width / 2 - 20;
             player.y = canvas.height / 2 - 20;
             score = 0;
+            enemies = [];
+            enemyTimer = 0;
             gameState = 'PLAYING';
         }
     }
 });
 window.addEventListener('keyup', (e) => keys[e.code] = false);
 
-// ==========================================
-// 3. BOUCLE PRINCIPALE (Update & Draw)
-// ==========================================
 function update() {
     if (gameState === 'PLAYING') {
-        // Mouvements
         if (keys['ArrowUp'] && player.y > 0) player.y -= player.speed;
         if (keys['ArrowDown'] && player.y < canvas.height - player.size) player.y += player.speed;
         if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
@@ -115,7 +108,24 @@ function update() {
         
         score++;
 
-        // Gestion du sol
+        enemyTimer += 16;
+        if (enemyTimer > enemyInterval) {
+            enemies.push(new Enemy(canvas.width, canvas.height));
+            enemyTimer = 0;
+            if (enemyInterval > 500) enemyInterval -= 10;
+        }
+
+        enemies.forEach(enemy => {
+            enemy.update();
+            if (player.x < enemy.x + enemy.width &&
+                player.x + player.size > enemy.x &&
+                player.y < enemy.y + enemy.height &&
+                player.y + player.size > enemy.y) {
+                gameState = 'GAMEOVER';
+            }
+        });
+        enemies = enemies.filter(enemy => !enemy.markedForDeletion);
+
         floorManager.update();
         if (floorManager.checkDanger(player, canvas)) {
             gameState = 'GAMEOVER';
@@ -136,6 +146,10 @@ function draw() {
     else if (gameState === 'PLAYING') {
         floorManager.draw(ctx, canvas);
         
+        enemies.forEach(enemy => {
+            enemy.draw(ctx);
+        });
+
         ctx.fillStyle = "white";
         ctx.font = "20px Arial";
         ctx.textAlign = "left";
