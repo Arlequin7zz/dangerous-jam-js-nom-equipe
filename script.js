@@ -67,7 +67,6 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
 let gameState = 'START'; 
-let score = 0;
 const floorManager = new FloorManager();
 
 let enemies = [];
@@ -90,7 +89,7 @@ window.addEventListener('keydown', (e) => {
         else if (gameState === 'GAMEOVER') {
             player.x = canvas.width / 2 - 20;
             player.y = canvas.height / 2 - 20;
-            score = 0;
+            gameLogic.score = 0;
             enemies = [];
             enemyTimer = 0;
             gameState = 'PLAYING';
@@ -106,7 +105,7 @@ function update() {
         if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
         if (keys['ArrowRight'] && player.x < canvas.width - player.size) player.x += player.speed;
         
-        score++;
+        gameLogic.update();
 
         enemyTimer += 16;
         if (enemyTimer > enemyInterval) {
@@ -153,7 +152,7 @@ function draw() {
         ctx.fillStyle = "white";
         ctx.font = "20px Arial";
         ctx.textAlign = "left";
-        ctx.fillText("Survival: " + Math.floor(score / 60), 20, 30);
+        ctx.fillText("Survival: " + gameLogic.getScore(), 20, 30);
 
         ctx.fillStyle = player.color;
         ctx.fillRect(player.x, player.y, player.size, player.size);
