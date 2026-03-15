@@ -66,32 +66,36 @@ class FloorManager {
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
-let gameState = 'START'; 
-const floorManager = new FloorManager();
+let gameState = 'START';
+let floorManager = new FloorManager();
 
 let enemies = [];
 let enemyTimer = 0;
 let enemyInterval = 1500;
 
-let player = {
-    x: canvas.width / 2 - 20,
-    y: canvas.height / 2 - 20,
-    size: 40,
-    speed: 5,
-    color: 'cyan'
+let player = new Player(canvas.width / 2 - 20, canvas.height / 2 - 20);
+
+let scoreManager = {
+    startTime: 0,
+    score: 0,
+    getScore: function() {
+        if (gameState === 'PLAYING') {
+            return Math.floor((Date.now() - this.startTime) / 1000);
+        }
+        return this.score;
+    }
 };
 
 let keys = {};
 window.addEventListener('keydown', (e) => {
     keys[e.code] = true;
     if (e.code === 'Space') {
-        if (gameState === 'START') gameState = 'PLAYING';
-        else if (gameState === 'GAMEOVER') {
-            player.x = canvas.width / 2 - 20;
-            player.y = canvas.height / 2 - 20;
-            gameLogic.score = 0;
+        if (gameState === 'START' || gameState === 'GAMEOVER') {
+            player = new Player(canvas.width / 2 - 20, canvas.height / 2 - 20);
             enemies = [];
             enemyTimer = 0;
+            floorManager = new FloorManager();
+            scoreManager.startTime = Date.now();
             gameState = 'PLAYING';
         }
     }
@@ -100,12 +104,7 @@ window.addEventListener('keyup', (e) => keys[e.code] = false);
 
 function update() {
     if (gameState === 'PLAYING') {
-        if (keys['ArrowUp'] && player.y > 0) player.y -= player.speed;
-        if (keys['ArrowDown'] && player.y < canvas.height - player.size) player.y += player.speed;
-        if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
-        if (keys['ArrowRight'] && player.x < canvas.width - player.size) player.x += player.speed;
-        
-        gameLogic.update();
+        player.move(keys, canvas.width, canvas.height);
 
         enemyTimer += 16;
         if (enemyTimer > enemyInterval) {
@@ -120,14 +119,20 @@ function update() {
                 player.x + player.size > enemy.x &&
                 player.y < enemy.y + enemy.height &&
                 player.y + player.size > enemy.y) {
-                gameState = 'GAMEOVER';
+                player.takeDamage(34);
+                enemy.markedForDeletion = true;
             }
         });
         enemies = enemies.filter(enemy => !enemy.markedForDeletion);
 
         floorManager.update();
         if (floorManager.checkDanger(player, canvas)) {
+            player.takeDamage(1);
+        }
+
+        if (player.isDead()) {
             gameState = 'GAMEOVER';
+            scoreManager.score = scoreManager.getScore();
         }
     }
 }
@@ -145,6 +150,8 @@ function draw() {
     else if (gameState === 'PLAYING') {
         floorManager.draw(ctx, canvas);
         
+        player.draw(ctx);
+
         enemies.forEach(enemy => {
             enemy.draw(ctx);
         });
@@ -152,10 +159,14 @@ function draw() {
         ctx.fillStyle = "white";
         ctx.font = "20px Arial";
         ctx.textAlign = "left";
-        ctx.fillText("Survival: " + gameLogic.getScore(), 20, 30);
+        ctx.fillText("Survival: " + scoreManager.getScore() + "s", 20, 30);
 
-        ctx.fillStyle = player.color;
-        ctx.fillRect(player.x, player.y, player.size, player.size);
+        ctx.fillStyle = 'grey';
+        ctx.fillRect(20, 40, 100, 15);
+        ctx.fillStyle = 'green';
+        ctx.fillRect(20, 40, player.health, 15);
+        ctx.strokeStyle = 'white';
+        ctx.strokeRect(20, 40, 100, 15);
     }
     else if (gameState === 'GAMEOVER') {
         ctx.fillStyle = "red";
@@ -163,7 +174,8 @@ function draw() {
         ctx.textAlign = "center";
         ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2);
         ctx.fillStyle = "white";
-        ctx.fillText("Press SPACE to Restart", canvas.width / 2, canvas.height / 2 + 60);
+        ctx.fillText("Score: " + scoreManager.score + "s", canvas.width / 2, canvas.height / 2 + 60);
+        ctx.fillText("Press SPACE to Restart", canvas.width / 2, canvas.height / 2 + 100);
     }
 
     update();
