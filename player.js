@@ -1,68 +1,44 @@
 class Player {
-
     constructor(x, y) {
-
         this.x = x;
         this.y = y;
-
-        this.size = 40;
-
+        this.size = 50; 
         this.speed = 5;
-
         this.health = 100;
-
     }
 
-    move(keys, canvasWidth, canvasHeight){
-
-        if(keys["ArrowUp"] && this.y > 0){
-            this.y -= this.speed;
-        }
-
-        if(keys["ArrowDown"] && this.y < canvasHeight - this.size){
-            this.y += this.speed;
-        }
-
-        if(keys["ArrowLeft"] && this.x > 0){
-            this.x -= this.speed;
-        }
-
-        if(keys["ArrowRight"] && this.x < canvasWidth - this.size){
-            this.x += this.speed;
-        }
-
+    move(keys, width, height) {
+        if (keys['ArrowUp'] && this.y > 0) this.y -= this.speed;
+        if (keys['ArrowDown'] && this.y < height - this.size) this.y += this.speed;
+        if (keys['ArrowLeft'] && this.x > 0) this.x -= this.speed;
+        if (keys['ArrowRight'] && this.x < width - this.size) this.x += this.speed;
     }
 
-    draw(ctx){
-
-        ctx.save();
-        ctx.fillStyle = "#00ffff"; // Cyan neon color
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = "#00ffff";
-        ctx.fillRect(this.x, this.y, this.size, this.size);
-        
-        // Inner core for styling
-        ctx.fillStyle = "white";
-        ctx.shadowBlur = 0;
-        ctx.fillRect(this.x + 10, this.y + 10, this.size - 20, this.size - 20);
-        ctx.restore();
-
-    }
-
-    takeDamage(amount){
-
+    takeDamage(amount) {
         this.health -= amount;
-
-        if(this.health < 0){
-            this.health = 0;
-        }
-
     }
 
-    isDead(){
-
+    isDead() {
         return this.health <= 0;
-
     }
 
+    draw(ctx) {
+        ctx.save();
+        ctx.globalAlpha = 1; // Force l'opacité
+        ctx.font = `bold ${this.size}px serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        // Contour noir pour la visibilité
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 4;
+        ctx.strokeText("👻", this.x + this.size / 2, this.y + this.size / 2);
+
+        // Effet de lueur
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = "white";
+        
+        ctx.fillText("👻", this.x + this.size / 2, this.y + this.size / 2);
+        ctx.restore();
+    }
 }
