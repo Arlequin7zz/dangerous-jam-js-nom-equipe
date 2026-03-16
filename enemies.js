@@ -1,31 +1,41 @@
 class Enemy {
     constructor(canvasWidth, canvasHeight) {
-        this.canvasWidth = canvasWidth;
-        this.canvasHeight = canvasHeight;
+        this.width = 30;
+        this.height = 30;
+        this.x = Math.random() * (canvasWidth - this.width);
+        this.y = -this.height; // Spawn slightly above canvas
         
-        this.width = 40;
-        this.height = 40;
-        
-        this.x = this.canvasWidth;
-        this.y = Math.random() * (this.canvasHeight - 100 - this.height) + 50;
-        this.speedX = Math.random() * 4 + 3;
+        // Initial velocity
+        this.speedY = Math.random() * 2 + 2; 
+        this.speedX = (Math.random() - 0.5) * 2;
         
         this.markedForDeletion = false;
-        this.color = 'red';
+        this.canvasHeight = canvasHeight;
+        this.canvasWidth = canvasWidth;
     }
 
-    update() {
-        this.x -= this.speedX;
+    // Difficulty multiplier speeds up enemies
+    update(difficultyMultiplier = 1) {
+        this.y += this.speedY * difficultyMultiplier;
+        this.x += this.speedX * difficultyMultiplier;
+        
+        // Bounce off side walls
+        if (this.x < 0 || this.x > this.canvasWidth - this.width) {
+            this.speedX *= -1;
+        }
 
-        if (this.x + this.width < 0) {
+        if (this.y > this.canvasHeight) {
             this.markedForDeletion = true;
         }
     }
 
     draw(ctx) {
-        ctx.fillStyle = this.color;
+        ctx.save();
+        ctx.fillStyle = "#ff00ff"; // Magenta neon
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = "#ff00ff";
+        
         ctx.fillRect(this.x, this.y, this.width, this.height);
-        ctx.strokeStyle = 'white';
-        ctx.strokeRect(this.x, this.y, this.width, this.height);
+        ctx.restore();
     }
 }
