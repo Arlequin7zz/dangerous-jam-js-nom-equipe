@@ -1,9 +1,10 @@
 class Player {
-    constructor(x, y) {
+    constructor(x, y, icon = "👻", speed = 5) {
         this.x = x;
         this.y = y;
         this.size = 50; 
-        this.speed = 5;
+        this.speed = speed;
+        this.icon = icon;
         this.health = 100;
         
         this.dashSpeed = 15;
@@ -77,7 +78,7 @@ class Player {
 
         ctx.strokeStyle = "black";
         ctx.lineWidth = 4;
-        ctx.strokeText("👻", this.x + this.size / 2, this.y + this.size / 2);
+        ctx.strokeText(this.icon, this.x + this.size / 2, this.y + this.size / 2);
 
         if (this.invincible) {
             ctx.shadowBlur = 30;
@@ -91,7 +92,7 @@ class Player {
             ctx.shadowColor = "white";
         }
         
-        ctx.fillText("👻", this.x + this.size / 2, this.y + this.size / 2);
+        ctx.fillText(this.icon, this.x + this.size / 2, this.y + this.size / 2);
         ctx.restore();
     }
 }

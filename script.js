@@ -1,14 +1,15 @@
 class FloorManager {
-    constructor() {
+    constructor(mode = 'Classic') {
+        this.mode = mode;
         this.floorIsToxic = false;
         this.floorColor = '#00ff00';
         this.currentState = 'SAFE';
         this.timer = 0;
         this.lastTime = Date.now();
         this.durations = {
-            SAFE: 3000,
-            WARNING: 1000,
-            TOXIC: 2000
+            SAFE: mode === 'Hardcore' ? 1500 : 3000,
+            WARNING: mode === 'Hardcore' ? 0 : 1000,
+            TOXIC: mode === 'Hardcore' ? 3000 : 2000
         };
         this.floorHeight = 50;
         this.particles = [];
@@ -51,19 +52,28 @@ class FloorManager {
         this.timer = 0;
         switch (this.currentState) {
             case 'SAFE':
-                this.currentState = 'WARNING';
-                this.floorColor = '#ff9900';
-                this.floorIsToxic = false;
+                if (this.mode === 'Hardcore') {
+                    this.currentState = 'TOXIC';
+                    this.floorColor = '#ff0000';
+                    this.floorIsToxic = true;
+                    showRadioMessage("DANGER INSTANTANÉ !");
+                } else {
+                    this.currentState = 'WARNING';
+                    this.floorColor = '#ff9900';
+                    this.floorIsToxic = false;
+                }
                 break;
             case 'WARNING':
                 this.currentState = 'TOXIC';
                 this.floorColor = '#ff0000';
                 this.floorIsToxic = true;
+                showRadioMessage("Attention, pic de toxicité détecté !");
                 break;
             case 'TOXIC':
                 this.currentState = 'SAFE';
                 this.floorColor = '#00ff00';
                 this.floorIsToxic = false;
+                showRadioMessage("Le sol est redevenu stable... pour l'instant.");
                 break;
         }
     }
@@ -131,18 +141,128 @@ let fadeAlpha = 0;
 let fadeDirection = 0;
 let nextState = null;
 
+// --- ICON / CHARACTER MANAGEMENT ---
+// We store the selected character's icon and base speed in a global object.
+// When the player starts the game, a new Player instance is created using these values.
+let selectedCharacter = { icon: "👻", speed: 5 };
+let gameMode = 'Classic';
+let nickname = "";
+let highScore = 0;
+let radioMessage = "";
+let radioMessageTimer = 0;
+let isMuted = false;
+
+// --- AUDIO SETUP ---
+let bgMusic = new Audio('Instru by dasss.m4a');
+bgMusic.loop = true;
+
+// Setup HTML Input for Nickname
+let nicknameInput = document.createElement('input');
+nicknameInput.type = 'text';
+nicknameInput.id = 'nicknameInput';
+nicknameInput.placeholder = 'Enter Pseudo...';
+nicknameInput.style.position = 'absolute';
+nicknameInput.style.left = '-9999px'; // Caché hors écran au lancement avant calcul
+nicknameInput.style.top = '-9999px';
+nicknameInput.style.transform = 'translate(-50%, -50%)';
+nicknameInput.style.fontSize = '20px';
+nicknameInput.style.textAlign = 'center';
+nicknameInput.style.padding = '5px';
+nicknameInput.style.zIndex = '100';
+nicknameInput.style.borderRadius = '5px';
+nicknameInput.style.border = '2px solid #00ffcc';
+nicknameInput.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+nicknameInput.style.color = '#ffffff';
+document.body.appendChild(nicknameInput);
+
+nicknameInput.addEventListener('input', (e) => {
+    nickname = e.target.value;
+    highScore = loadHighScore(nickname);
+});
+
+// --- LOCAL STORAGE LOGIC ---
+// We use localStorage to save the highest score permanently on the user's browser.
+// It stores data as key-value pairs. Here we use 'toxicFloorScores' as the key to store a JSON object of usernames and their scores.
+function loadHighScore(name) {
+    if (!name) return 0;
+    const scores = JSON.parse(localStorage.getItem('toxicFloorScores')) || {};
+    return scores[name] || 0;
+}
+
+function saveHighScore(name, score) {
+    if (!name) return;
+    const scores = JSON.parse(localStorage.getItem('toxicFloorScores')) || {};
+    // Only update and save the score if it's higher than the previously saved score.
+    if (!scores[name] || score > scores[name]) {
+        scores[name] = score;
+        localStorage.setItem('toxicFloorScores', JSON.stringify(scores));
+    }
+}
+
+// Transforme l'objet des scores en tableau, le trie, et retourne les meilleurs
+function getTopScores() {
+    const scores = JSON.parse(localStorage.getItem('toxicFloorScores')) || {};
+    let scoreArray = [];
+    for (let name in scores) {
+        scoreArray.push({name: name, score: scores[name]});
+    }
+    scoreArray.sort((a, b) => b.score - a.score);
+    return scoreArray.slice(0, 3); // Retourne le Top 3
+}
+// ---------------------------
+
+function showRadioMessage(msg) {
+    radioMessage = msg;
+    radioMessageTimer = 180;
+}
+
 function changeGameState(newState) {
     if (fadeDirection === 0) {
         nextState = newState;
         fadeDirection = 1;
+        if (newState !== 'START') {
+            nicknameInput.style.display = 'none';
+        }
     }
 }
 
 let keys = {};
 window.addEventListener('keydown', (e) => {
     keys[e.code] = true;
-    if (e.code === 'Space' && fadeDirection === 0) {
-        if (gameState === 'START' || gameState === 'GAMEOVER') {
+    
+    // Lance la musique à la première touche pressée (si le son n'est pas coupé)
+    if (bgMusic.paused && !isMuted && e.code !== 'KeyV') {
+        bgMusic.play().catch(err => console.log("Attente d'interaction pour l'audio"));
+    }
+
+    // Toggle pour le Son
+    if (e.code === 'KeyV') {
+        isMuted = !isMuted;
+        bgMusic.muted = isMuted;
+    }
+
+    if (fadeDirection !== 0) return;
+
+    if (gameState === 'START') {
+        if (e.code === 'KeyH') {
+            changeGameState('HOW_TO_PLAY');
+        } else if (e.code === 'KeyC') {
+            changeGameState('CHARACTER_SELECT');
+        } else if (e.code === 'Space' && nickname.trim() !== '') {
+            changeGameState('INTRO');
+        }
+    } else if (gameState === 'HOW_TO_PLAY' || gameState === 'CHARACTER_SELECT' || gameState === 'GAMEOVER') {
+        if (gameState === 'CHARACTER_SELECT') {
+            if (e.code === 'Digit1' || e.code === 'Numpad1') selectedCharacter = { icon: "👻", speed: 5 };
+            if (e.code === 'Digit2' || e.code === 'Numpad2') selectedCharacter = { icon: "🤖", speed: 4 };
+            if (e.code === 'Digit3' || e.code === 'Numpad3') selectedCharacter = { icon: "👽", speed: 6 };
+            if (e.code === 'KeyM') gameMode = gameMode === 'Classic' ? 'Hardcore' : 'Classic';
+        }
+        if (e.code === 'Space') {
+            changeGameState('START');
+        }
+    } else if (gameState === 'INTRO') {
+        if (e.code === 'Space') {
             changeGameState('PLAYING');
         }
     }
@@ -155,16 +275,22 @@ function updateTransitions() {
         if (fadeAlpha >= 1) {
             fadeAlpha = 1;
             gameState = nextState;
+            
+            if (gameState === 'START') {
+                nicknameInput.style.display = 'block';
+            }
+
             if (gameState === 'PLAYING') {
-                player = new Player(canvas.width / 2 - 20, canvas.height / 2 - 20);
+                player = new Player(canvas.width / 2 - 20, canvas.height / 2 - 20, selectedCharacter.icon, selectedCharacter.speed);
                 enemies = [];
                 projectiles = [];
                 enemyTimer = 0;
                 powerUps = [];
                 floatingTexts = [];
                 powerUpTimer = 0;
-                floorManager = new FloorManager();
+                floorManager = new FloorManager(gameMode);
                 gameLogic.start();
+                showRadioMessage("Début de la survie. Bonne chance.");
             }
             fadeDirection = -1;
         }
@@ -212,7 +338,13 @@ function playBeep(floorMgr) {
 function update() {
     updateTransitions();
 
+    if (screenShake > 0) screenShake--;
+
     if (gameState === 'PLAYING' && fadeDirection <= 0) {
+        if (radioMessageTimer > 0) {
+            radioMessageTimer--;
+        }
+        
         player.move(keys, canvas.width, canvas.height);
         player.update();
         gameLogic.update();
@@ -306,6 +438,8 @@ function update() {
         if (screenShake > 0) screenShake--;
 
         if (player.isDead()) {
+            saveHighScore(nickname, gameLogic.getScore());
+            highScore = loadHighScore(nickname);
             changeGameState('GAMEOVER');
         }
         
@@ -345,10 +479,64 @@ function draw() {
     }
 
     if (gameState === 'START') {
-        drawNeonText(ctx, "THE TOXIC FLOOR", canvas.width / 2, canvas.height / 2 - 60, 50, "#00ffcc");
-        drawNeonText(ctx, "Évite le sol ROUGE !", canvas.width / 2, canvas.height / 2, 30, "#ff0000");
-        drawNeonText(ctx, "ZQSD ou Flèches pour bouger", canvas.width / 2, canvas.height / 2 + 50, 20, "#cccccc");
-        drawNeonText(ctx, "Espace pour commencer", canvas.width / 2, canvas.height / 2 + 100, 25, "#ffffff");
+        // Calcule la position exacte du champ HTML par rapport au Canvas (s'adapte à tous les écrans)
+        const rect = canvas.getBoundingClientRect();
+        nicknameInput.style.left = (rect.left + rect.width / 2 + window.scrollX) + 'px';
+        nicknameInput.style.top = (rect.top + rect.height / 2 + 65 + window.scrollY) + 'px';
+
+        drawNeonText(ctx, "THE TOXIC FLOOR", canvas.width / 2, canvas.height / 2 - 160, 60, "#00ffcc");
+        
+        // LEADERBOARD
+        drawNeonText(ctx, "🏆 LEADERBOARD 🏆", canvas.width / 2, canvas.height / 2 - 100, 22, "#ffff00");
+        let topScores = getTopScores();
+        if (topScores.length === 0) {
+            drawNeonText(ctx, "Aucun score pour le moment", canvas.width / 2, canvas.height / 2 - 70, 18, "#aaaaaa");
+        } else {
+            topScores.forEach((entry, index) => {
+                let colors = ["#ffd700", "#c0c0c0", "#cd7f32"]; // Or, Argent, Bronze
+                drawNeonText(ctx, `${index + 1}. ${entry.name} - ${entry.score}s`, canvas.width / 2, canvas.height / 2 - 70 + (index * 25), 20, colors[index] || "#ffffff");
+            });
+        }
+        
+        drawNeonText(ctx, "▼ Enter Pseudo below ▼", canvas.width / 2, canvas.height / 2 + 20, 18, "#aaaaaa");
+        
+        drawNeonText(ctx, "[H] How to Play  |  [C] Character & Mode", canvas.width / 2, canvas.height / 2 + 115, 20, "#cccccc");
+        if (nickname.trim() !== '') {
+            drawNeonText(ctx, "► Press SPACE to Continue ◄", canvas.width / 2, canvas.height / 2 + 165, 25, Math.floor(Date.now() / 500) % 2 === 0 ? "#ffffff" : "#00ffcc");
+        } else {
+            drawNeonText(ctx, "Enter Pseudo to Start", canvas.width / 2, canvas.height / 2 + 165, 25, "#aa0000");
+        }
+    } 
+    else if (gameState === 'HOW_TO_PLAY') {
+        drawNeonText(ctx, "TUTORIAL", canvas.width / 2, 100, 40, "#00ffcc");
+        drawNeonText(ctx, "Controls: ZQSD or Arrows to move. SHIFT to Dash.", canvas.width / 2, 200, 20, "#ffffff");
+        drawNeonText(ctx, "Colors:", canvas.width / 2, 250, 25, "#ffffff");
+        drawNeonText(ctx, "GREEN = Safe", canvas.width / 2, 290, 20, "#00ff00");
+        drawNeonText(ctx, "ORANGE = Warning! Get ready.", canvas.width / 2, 330, 20, "#ff9900");
+        drawNeonText(ctx, "RED = Instant Death! Don't touch.", canvas.width / 2, 370, 20, "#ff0000");
+        drawNeonText(ctx, "Press SPACE to Go Back", canvas.width / 2, 500, 20, "#cccccc");
+    }
+    else if (gameState === 'CHARACTER_SELECT') {
+        drawNeonText(ctx, "SETTINGS", canvas.width / 2, 100, 40, "#00ffcc");
+        
+        drawNeonText(ctx, "Choose Character:", canvas.width / 2, 180, 25, "#ffffff");
+        drawNeonText(ctx, `[1] 👻 Ghost (Normal) ${selectedCharacter.icon === '👻' ? '<--' : ''}`, canvas.width / 2, 230, 20, selectedCharacter.icon === '👻' ? '#00ff00' : '#cccccc');
+        drawNeonText(ctx, `[2] 🤖 Robot (Slow)   ${selectedCharacter.icon === '🤖' ? '<--' : ''}`, canvas.width / 2, 270, 20, selectedCharacter.icon === '🤖' ? '#00ff00' : '#cccccc');
+        drawNeonText(ctx, `[3] 👽 Alien (Fast)   ${selectedCharacter.icon === '👽' ? '<--' : ''}`, canvas.width / 2, 310, 20, selectedCharacter.icon === '👽' ? '#00ff00' : '#cccccc');
+        
+        drawNeonText(ctx, "Game Mode: Press [M] to toggle", canvas.width / 2, 380, 25, "#ffffff");
+        drawNeonText(ctx, `Current Mode: ${gameMode}`, canvas.width / 2, 420, 30, gameMode === 'Classic' ? '#00ffcc' : '#ff0000');
+        
+        drawNeonText(ctx, "Press SPACE to Go Back", canvas.width / 2, 520, 20, "#cccccc");
+    }
+    else if (gameState === 'INTRO') {
+        drawNeonText(ctx, "TRANSMISSION ENTRANTE...", canvas.width / 2, 100, 30, "#00ff00");
+        drawNeonText(ctx, "L'usine chimique X-10 a explosé.", canvas.width / 2, 250, 20, "#ffffff");
+        drawNeonText(ctx, "Le sol est devenu instable et toxique.", canvas.width / 2, 290, 20, "#ffffff");
+        drawNeonText(ctx, "Tu es le dernier survivant.", canvas.width / 2, 330, 20, "#ffffff");
+        drawNeonText(ctx, "Fuis avant que les radiations ne t'emportent.", canvas.width / 2, 370, 20, "#ff5555");
+        
+        drawNeonText(ctx, "Press SPACE to Survive", canvas.width / 2, 500, 25, "#00ffcc");
     } 
     else if (gameState === 'PLAYING') {
         floorManager.draw(ctx, canvas);
@@ -408,6 +596,10 @@ function draw() {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("DASH (SHIFT)", 20 + barWidth / 4, 115);
+        
+        if (radioMessageTimer > 0) {
+            drawNeonText(ctx, `📻 ${radioMessage}`, canvas.width / 2, 50, 20, "#00ff00");
+        }
     }
     else if (gameState === 'GAMEOVER') {
         drawNeonText(ctx, "GAME OVER", canvas.width / 2, canvas.height / 2 - 40, 60, "#ff0000");
@@ -417,6 +609,9 @@ function draw() {
     }
 
     ctx.restore();
+
+    // UI pour le Son (Affiché en permanence en bas du jeu)
+    drawNeonText(ctx, "♪ Sound: " + (isMuted ? "OFF" : "ON") + " [Press V]", canvas.width / 2, canvas.height - 15, 16, isMuted ? "#ff5555" : "#00ff00");
 
     if (fadeAlpha > 0) {
         ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`;
