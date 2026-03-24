@@ -1,5 +1,5 @@
 class Player {
-    constructor(x, y, icon = "👻", speed = 5) {
+    constructor(x, y, icon = "👻", speed = 8) {
         this.x = x;
         this.y = y;
         this.size = 50; 
@@ -7,13 +7,17 @@ class Player {
         this.icon = icon;
         this.health = 100;
         
-        this.dashSpeed = 15;
+        // Scale dash speed based on character's base speed
+        this.dashSpeed = this.speed * 3;
         this.isDashing = false;
         this.dashDuration = 0;
         this.dashCooldown = 0;
         
         this.invincible = false;
         this.invincibleTimer = 0;
+        
+        // --- DASH PARTICLES ---
+        this.dashParticles = [];
     }
 
     update() {
@@ -21,6 +25,13 @@ class Player {
             this.invincibleTimer--;
             if (this.invincibleTimer <= 0) this.invincible = false;
         }
+        
+        // Update dash particles (fade out and shrink over time)
+        this.dashParticles.forEach(p => {
+            p.alpha -= 0.05;
+            p.size -= 0.2;
+        });
+        this.dashParticles = this.dashParticles.filter(p => p.alpha > 0 && p.size > 0);
     }
 
     move(keys, width, height) {
@@ -39,6 +50,15 @@ class Player {
         if (this.isDashing) {
             currentSpeed = this.dashSpeed;
             this.dashDuration--;
+            
+            // Spawn neon blue trail particles while dashing
+            this.dashParticles.push({
+                x: this.x + this.size / 2 + (Math.random() - 0.5) * 20,
+                y: this.y + this.size / 2 + (Math.random() - 0.5) * 20,
+                alpha: 1,
+                size: Math.random() * 8 + 4
+            });
+            
             if (this.dashDuration <= 0) {
                 this.isDashing = false;
             }
@@ -71,6 +91,18 @@ class Player {
 
     draw(ctx) {
         ctx.save();
+        
+        // --- DRAW DASH PARTICLES (BLUE TRAIL) ---
+        ctx.fillStyle = "#00ccff"; // Neon blue
+        ctx.shadowBlur = 0; // Pas de shadowBlur sur les petites particules de dash
+        ctx.shadowColor = "#00ccff";
+        this.dashParticles.forEach(p => {
+            ctx.globalAlpha = p.alpha;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        
         ctx.globalAlpha = 1;
         ctx.font = `bold ${this.size}px serif`;
         ctx.textAlign = "center";
@@ -81,14 +113,14 @@ class Player {
         ctx.strokeText(this.icon, this.x + this.size / 2, this.y + this.size / 2);
 
         if (this.invincible) {
-            ctx.shadowBlur = 30;
+            ctx.shadowBlur = 10; // Valeur limitée à 10 max
             ctx.shadowColor = "#ffff00";
             ctx.fillStyle = "rgba(255, 255, 0, 0.4)";
             ctx.beginPath();
             ctx.arc(this.x + this.size / 2, this.y + this.size / 2, this.size / 1.3, 0, Math.PI * 2);
             ctx.fill();
         } else {
-            ctx.shadowBlur = 20;
+            ctx.shadowBlur = 10; // Valeur limitée à 10 max
             ctx.shadowColor = "white";
         }
         

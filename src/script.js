@@ -30,14 +30,21 @@ class FloorManager {
         }
 
         if (this.currentState === 'TOXIC') {
-            if (Math.random() < 0.3) {
+            // --- DENSE LAVA EFFECT ---
+            // Spawn multiple bubbles per frame for a boiling toxic effect
+            let bubblesToSpawn = Math.floor(Math.random() * 3) + 2; // 2 to 4 bubbles per frame
+            for (let i = 0; i < bubblesToSpawn; i++) {
                 this.particles.push({
-                    x: Math.random() * 800,
-                    y: 500 - this.floorHeight,
-                    speed: Math.random() * 2 + 1,
-                    size: Math.random() * 5 + 3,
-                    alpha: 0.8
+                    x: Math.random() * canvas.width, // Adapted to actual canvas dimensions
+                    y: canvas.height - this.floorHeight + (Math.random() * 15), 
+                    speed: Math.random() * 3 + 2, // Faster rise
+                    size: Math.random() * 6 + 4, // Varying bubble sizes
+                    alpha: 0.9
                 });
+                // Limite stricte des particules à 50
+                if (this.particles.length > 50) {
+                    this.particles.shift(); // Retire la plus ancienne
+                }
             }
         }
 
@@ -88,20 +95,22 @@ class FloorManager {
         
         ctx.globalAlpha = alpha;
         ctx.fillStyle = this.floorColor;
-        ctx.shadowBlur = this.currentState === 'TOXIC' ? 30 : 10;
+        ctx.shadowBlur = this.currentState === 'TOXIC' ? 10 : 5; // Optimisation : shadowBlur strictement limité à 10 max
         ctx.shadowColor = this.floorColor;
         
         ctx.fillRect(0, canvas.height - this.floorHeight, canvas.width, this.floorHeight);
         
         if (this.currentState === 'TOXIC' || this.particles.length > 0) {
-            ctx.shadowBlur = 15;
+            ctx.save(); // Isolation stricte des particules
+            ctx.shadowBlur = 0; // Optimisation : pas de flou pour les particules individuelles
+            ctx.fillStyle = this.floorColor;
             this.particles.forEach(p => {
                 ctx.globalAlpha = p.alpha;
-                ctx.fillStyle = this.floorColor;
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
                 ctx.fill();
             });
+            ctx.restore();
         }
         ctx.restore();
     }
@@ -144,16 +153,27 @@ let nextState = null;
 // --- ICON / CHARACTER MANAGEMENT ---
 // We store the selected character's icon and base speed in a global object.
 // When the player starts the game, a new Player instance is created using these values.
-let selectedCharacter = { icon: "👻", speed: 5 };
+let selectedCharacter = { icon: "👻", speed: 8 };
 let gameMode = 'Classic';
 let nickname = "";
 let highScore = 0;
-let radioMessage = "";
-let radioMessageTimer = 0;
 let isMuted = false;
 
+// --- INTERACTIVE LORE & CHAOS EVENT ---
+let radioMessageFullText = "";      // The complete message to be displayed.
+let radioMessageDisplayLength = 0;  // How many characters are currently visible.
+let radioMessageCharTimer = 0;      // A timer to control the speed of the typewriter effect.
+let radioMessageTimer = 0;          // How long the message stays on screen after being typed.
+let chaosEventTimer = 0;            // A timer for the "Invert Colors" chaos event.
+
 // --- AUDIO SETUP ---
-let bgMusic = new Audio('Instru by dasss.m4a');
+// We create a simple beat manager to sync visual effects with the music's rhythm.
+// For a game jam, assuming a fixed BPM is a robust and simple solution.
+// For more complex projects, the Web Audio API's AnalyserNode would be used for real-time beat detection.
+const BPM = 125; // Set this to your music's Beats Per Minute.
+let lastBeatTime = 0;
+let visualPulse = 0; // A value from 0 to 1 representing the beat's intensity.
+let bgMusic = new Audio('assets/Instru by dasss.m4a');
 bgMusic.loop = true;
 
 // Setup HTML Input for Nickname
@@ -212,8 +232,10 @@ function getTopScores() {
 // ---------------------------
 
 function showRadioMessage(msg) {
-    radioMessage = msg;
-    radioMessageTimer = 180;
+    radioMessageFullText = msg;
+    radioMessageDisplayLength = 0; // Reset the typewriter
+    radioMessageCharTimer = 0;
+    radioMessageTimer = 300; // Time the message stays on screen
 }
 
 function changeGameState(newState) {
@@ -253,9 +275,9 @@ window.addEventListener('keydown', (e) => {
         }
     } else if (gameState === 'HOW_TO_PLAY' || gameState === 'CHARACTER_SELECT' || gameState === 'GAMEOVER') {
         if (gameState === 'CHARACTER_SELECT') {
-            if (e.code === 'Digit1' || e.code === 'Numpad1') selectedCharacter = { icon: "👻", speed: 5 };
-            if (e.code === 'Digit2' || e.code === 'Numpad2') selectedCharacter = { icon: "🤖", speed: 4 };
-            if (e.code === 'Digit3' || e.code === 'Numpad3') selectedCharacter = { icon: "👽", speed: 6 };
+            if (e.code === 'Digit1' || e.code === 'Numpad1') selectedCharacter = { icon: "👻", speed: 8 };
+            if (e.code === 'Digit2' || e.code === 'Numpad2') selectedCharacter = { icon: "🤖", speed: 6 };
+            if (e.code === 'Digit3' || e.code === 'Numpad3') selectedCharacter = { icon: "👽", speed: 10 };
             if (e.code === 'KeyM') gameMode = gameMode === 'Classic' ? 'Hardcore' : 'Classic';
         }
         if (e.code === 'Space') {
@@ -303,35 +325,52 @@ function updateTransitions() {
     }
 }
 
+let lastBoxShadow = "";
+let lastBorderColor = "";
+
 function playBeep(floorMgr) {
+    // --- AUDIO SYNC VISUALS ---
+    // Simplification : 2 intensités fixes (fort/faible) pour éviter les recalculs CSS constants
+    const pulseIntensity = visualPulse > 0.5 ? 40 : 20; 
+
+    let newBorderColor = '';
+    let newBoxShadow = '';
+
     if (floorMgr.currentState === 'SAFE') {
-        canvas.style.borderColor = '#00ffcc';
-        canvas.style.boxShadow = '0 0 20px #00ffcc, inset 0 0 20px #00ffcc';
-        return;
+        newBorderColor = '#00ffcc';
+        newBoxShadow = `0 0 ${pulseIntensity}px #00ffcc, inset 0 0 ${pulseIntensity}px #00ffcc`;
+    } else {
+        let progress = floorMgr.timer / floorMgr.targetDuration;
+        let blinkRate = floorMgr.currentState === 'WARNING' ? 400 - (progress * 300) : 100;
+        let isBlinkOn = Math.floor(Date.now() / blinkRate) % 2 === 0;
+
+        if (floorMgr.currentState === 'WARNING') {
+            if (isBlinkOn) {
+                newBorderColor = '#ff9900';
+                newBoxShadow = `0 0 ${pulseIntensity}px #ff9900, inset 0 0 ${pulseIntensity}px #ff9900`;
+            } else {
+                newBorderColor = '#333';
+                newBoxShadow = 'none';
+            }
+        } else if (floorMgr.currentState === 'TOXIC') {
+            if (isBlinkOn) {
+                newBorderColor = '#ff0000';
+                newBoxShadow = `0 0 ${pulseIntensity * 1.5}px #ff0000, inset 0 0 ${pulseIntensity * 1.5}px #ff0000`;
+            } else {
+                newBorderColor = '#550000';
+                newBoxShadow = '0 0 10px #550000';
+            }
+        }
     }
 
-    let progress = floorMgr.timer / floorMgr.targetDuration;
-    
-    let blinkRate = floorMgr.currentState === 'WARNING' ? 400 - (progress * 300) : 100;
-    
-    let isBlinkOn = Math.floor(Date.now() / blinkRate) % 2 === 0;
-
-    if (floorMgr.currentState === 'WARNING') {
-        if (isBlinkOn) {
-            canvas.style.borderColor = '#ff9900';
-            canvas.style.boxShadow = '0 0 20px #ff9900, inset 0 0 20px #ff9900';
-        } else {
-            canvas.style.borderColor = '#333';
-            canvas.style.boxShadow = 'none';
-        }
-    } else if (floorMgr.currentState === 'TOXIC') {
-        if (isBlinkOn) {
-            canvas.style.borderColor = '#ff0000';
-            canvas.style.boxShadow = '0 0 30px #ff0000, inset 0 0 30px #ff0000';
-        } else {
-            canvas.style.borderColor = '#550000';
-            canvas.style.boxShadow = '0 0 10px #550000';
-        }
+    // Optimisation MAJEURE : On applique au DOM uniquement s'il y a un vrai changement !
+    if (lastBorderColor !== newBorderColor) {
+        canvas.style.borderColor = newBorderColor;
+        lastBorderColor = newBorderColor;
+    }
+    if (lastBoxShadow !== newBoxShadow) {
+        canvas.style.boxShadow = newBoxShadow;
+        lastBoxShadow = newBoxShadow;
     }
 }
 
@@ -340,9 +379,34 @@ function update() {
 
     if (screenShake > 0) screenShake--;
 
+    // --- UPDATE TIMERS & MANAGERS ---
+    const beatInterval = 60000 / BPM;
+    const now = Date.now();
+    if (now - lastBeatTime > beatInterval) {
+        lastBeatTime = now - ((now - lastBeatTime) % beatInterval); // Sync with the beat
+        visualPulse = 1.0; // Max intensity on beat
+    }
+    if (visualPulse > 0) visualPulse = Math.max(0, visualPulse - 0.05); // Decay pulse
+
+    if (chaosEventTimer > 0) chaosEventTimer--;
+
     if (gameState === 'PLAYING' && fadeDirection <= 0) {
-        if (radioMessageTimer > 0) {
+        // Update typewriter effect
+        if (radioMessageDisplayLength < radioMessageFullText.length) {
+            radioMessageCharTimer++;
+            if (radioMessageCharTimer > 1) { // Change '1' to be faster or slower
+                radioMessageDisplayLength++;
+                radioMessageCharTimer = 0;
+            }
+        } else if (radioMessageTimer > 0) {
             radioMessageTimer--;
+        }
+
+        // --- CHAOS EVENT TRIGGER ---
+        // A rare random chance to trigger the chaos event during gameplay.
+        if (chaosEventTimer <= 0 && Math.random() < 0.0002) {
+            chaosEventTimer = 300; // Event lasts for 5 seconds (300 frames / 60fps)
+            showRadioMessage("SYSTEM CORRUPTION DETECTED!");
         }
         
         player.move(keys, canvas.width, canvas.height);
@@ -378,7 +442,10 @@ function update() {
         });
         powerUps = powerUps.filter(pu => !pu.markedForDeletion);
 
-        floatingTexts.forEach(ft => ft.update());
+        floatingTexts.forEach(ft => {
+            ft.update();
+            if (ft.y < -50) ft.markedForDeletion = true; // Cleanup hors-écran
+        });
         floatingTexts = floatingTexts.filter(ft => !ft.markedForDeletion);
 
         enemyTimer += 16 * difficulty;
@@ -413,6 +480,11 @@ function update() {
                     }
                 }
             }
+            
+            // Nettoyage de l'ennemi s'il sort trop de l'écran
+            if (enemy.x < -200 || enemy.x > canvas.width + 200 || enemy.y < -200 || enemy.y > canvas.height + 200) {
+                enemy.markedForDeletion = true;
+            }
         });
         enemies = enemies.filter(enemy => !enemy.markedForDeletion);
 
@@ -426,13 +498,24 @@ function update() {
                 proj.markedForDeletion = true;
                 screenShake = 5;
             }
+            
+            // Nettoyage des projectiles qui sortent de l'écran
+            if (proj.x < -50 || proj.x > canvas.width + 50 || proj.y < -50 || proj.y > canvas.height + 50) {
+                proj.markedForDeletion = true;
+            }
         });
         projectiles = projectiles.filter(proj => !proj.markedForDeletion);
 
         floorManager.update(difficulty);
         if (floorManager.checkDanger(player, canvas)) {
+            // --- VISUAL JUICE: VIOLENT SCREEN SHAKE ---
+            // If this damage is fatal, trigger a much stronger screen shake.
+            if (player.health <= 1 && !player.invincible) {
+                screenShake = 40; // A big shake for a dramatic death.
+            } else {
+                screenShake = 5;
+            }
             player.takeDamage(1);
-            screenShake = 5;
         }
 
         if (screenShake > 0) screenShake--;
@@ -452,7 +535,7 @@ function drawNeonText(ctx, text, x, y, size, color) {
     ctx.fillStyle = color;
     ctx.font = `bold ${size}px 'Courier New', Courier, monospace`;
     ctx.textAlign = "center";
-    ctx.shadowBlur = 20;
+    ctx.shadowBlur = 15; // Limite de l'éclat global pour les textes
     ctx.shadowColor = color;
     ctx.fillText(text, x, y);
     ctx.restore();
@@ -460,6 +543,10 @@ function drawNeonText(ctx, text, x, y, size, color) {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Reset complet du Canvas pour éviter la saturation blanche et les bugs de perfs
+    ctx.globalAlpha = 1.0;
+    ctx.shadowBlur = 0;
 
     ctx.save();
     
@@ -476,6 +563,17 @@ function draw() {
         const dx = (Math.random() - 0.5) * screenShake;
         const dy = (Math.random() - 0.5) * screenShake;
         ctx.translate(dx, dy);
+    }
+
+    // --- CHAOS EVENT RENDER ---
+    // If the chaos event is active, we apply a 'difference' composite operation.
+    // Drawing a white rectangle over the screen with this mode inverts all the colors.
+    if (chaosEventTimer > 0) {
+        ctx.save(); // Isolation stricte de l'effet d'inversion
+        ctx.globalCompositeOperation = 'difference';
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
     }
 
     if (gameState === 'START') {
@@ -560,11 +658,22 @@ function draw() {
         ctx.shadowBlur = 10;
         ctx.shadowColor = "white";
         ctx.fillText("Survival: " + gameLogic.getScore() + "s", 20, 30);
+        
+        // --- NEW RECORD FEEDBACK ---
+        if (highScore > 0 && gameLogic.getScore() > highScore) {
+            if (Math.floor(Date.now() / 300) % 2 === 0) { // Blinking effect
+                ctx.fillStyle = "#ffff00"; // Yellow text
+                ctx.shadowColor = "#ffff00";
+                ctx.fillText("NEW RECORD!", 250, 30);
+            }
+        }
+        
         ctx.fillStyle = "#ff0055";
         ctx.shadowColor = "#ff0055";
         ctx.fillText("Wave: " + gameLogic.getWave(), 20, 60);
         ctx.restore();
 
+        ctx.save(); // Isolation stricte pour ne pas faire fuiter les styles de l'interface
         const barWidth = 200;
         ctx.fillStyle = '#222';
         ctx.fillRect(20, 80, barWidth, 20);
@@ -596,9 +705,14 @@ function draw() {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("DASH (SHIFT)", 20 + barWidth / 4, 115);
+        ctx.restore();
         
-        if (radioMessageTimer > 0) {
-            drawNeonText(ctx, `📻 ${radioMessage}`, canvas.width / 2, 50, 20, "#00ff00");
+        // Draw typewriter radio message
+        if (radioMessageTimer > 0 && radioMessageFullText) {
+            let textToDraw = radioMessageFullText.substring(0, Math.floor(radioMessageDisplayLength));
+            // Add a blinking cursor for style
+            if (radioMessageDisplayLength < radioMessageFullText.length && Math.floor(Date.now() / 300) % 2 === 0) textToDraw += '_';
+            drawNeonText(ctx, `📻 ${textToDraw}`, canvas.width / 2, 50, 20, "#00ff00");
         }
     }
     else if (gameState === 'GAMEOVER') {
@@ -614,8 +728,10 @@ function draw() {
     drawNeonText(ctx, "♪ Sound: " + (isMuted ? "OFF" : "ON") + " [Press V]", canvas.width / 2, canvas.height - 15, 16, isMuted ? "#ff5555" : "#00ff00");
 
     if (fadeAlpha > 0) {
+        ctx.save(); // Isolation pour ne pas altérer les styles de la frame suivante
         ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
     }
 
     update();

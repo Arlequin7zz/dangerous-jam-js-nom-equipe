@@ -63,13 +63,9 @@ class Enemy {
     }
 
     draw(ctx) {
-        ctx.save();
         ctx.fillStyle = this.color;
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = this.color;
         
         ctx.fillRect(this.x, this.y, this.width, this.height);
-        ctx.restore();
     }
 }
 
@@ -95,13 +91,9 @@ class Projectile {
     }
 
     draw(ctx) {
-        ctx.save();
         ctx.fillStyle = this.color;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = this.color;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         ctx.fill();
-        ctx.restore();
     }
 }
