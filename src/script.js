@@ -257,6 +257,14 @@ window.addEventListener('keydown', (e) => {
         bgMusic.play().catch(err => console.log("Attente d'interaction pour l'audio"));
     }
 
+    // Désactive les raccourcis clavier quand on écrit dans le champ de texte
+    if (document.activeElement === nicknameInput) {
+        if (e.code === 'Enter' && nickname.trim() !== '') {
+            changeGameState('INTRO');
+        }
+        return;
+    }
+
     // Toggle pour le Son
     if (e.code === 'KeyV') {
         isMuted = !isMuted;
@@ -600,7 +608,7 @@ function draw() {
         
         drawNeonText(ctx, "[H] How to Play  |  [C] Character & Mode", canvas.width / 2, canvas.height / 2 + 115, 20, "#cccccc");
         if (nickname.trim() !== '') {
-            drawNeonText(ctx, "► Press SPACE to Continue ◄", canvas.width / 2, canvas.height / 2 + 165, 25, Math.floor(Date.now() / 500) % 2 === 0 ? "#ffffff" : "#00ffcc");
+            drawNeonText(ctx, "► Press ENTER or SPACE to Continue ◄", canvas.width / 2, canvas.height / 2 + 165, 25, Math.floor(Date.now() / 500) % 2 === 0 ? "#ffffff" : "#00ffcc");
         } else {
             drawNeonText(ctx, "Enter Pseudo to Start", canvas.width / 2, canvas.height / 2 + 165, 25, "#aa0000");
         }
